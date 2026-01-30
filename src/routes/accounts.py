@@ -208,7 +208,7 @@ async def refresh_token(
     jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager)
 ):
     try:
-        decoded_payload = jwt_manager.decode_refresh_token(data.refresh_token)
+        decoded_payload = jwt_manager.decode_token(data.refresh_token)
     except Exception:
         raise HTTPException(status_code=400, detail="Token has expired.")
 
@@ -228,4 +228,4 @@ async def refresh_token(
         raise HTTPException(status_code=404, detail="User not found.")
 
     new_access_token = jwt_manager.create_access_token(data={"user_id": user.id, "sub": user.email})
-    return {"access_token": new_access_token, "token_type": "bearer"}
+    return {"access_token": new_access_token}
