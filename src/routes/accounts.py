@@ -208,11 +208,8 @@ async def refresh_token(
     jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager)
 ):
     try:
-        decoded_payload = jwt_manager.decode_token(data.refresh_token)
+        _ = jwt_manager.decode_token(data.refresh_token)
     except Exception:
-        raise HTTPException(status_code=400, detail="Token has expired.")
-
-    if not decoded_payload:
         raise HTTPException(status_code=400, detail="Token has expired.")
 
     token_stmt = select(RefreshTokenModel).filter_by(token=data.refresh_token)
