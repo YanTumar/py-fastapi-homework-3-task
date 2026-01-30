@@ -174,8 +174,8 @@ async def login(
         if not user.is_active:
             raise HTTPException(status_code=403, detail="User account is not activated.")
 
-        access_token = jwt_manager.create_access_token(payload={"sub": str(user.id)})
-        refresh_token_str = jwt_manager.create_refresh_token(payload={"sub": str(user.id)})
+        access_token = jwt_manager.create_access_token(data={"sub": str(user.id)})
+        refresh_token_str = jwt_manager.create_refresh_token(data={"sub": str(user.id)})
 
         new_refresh_token = RefreshTokenModel.create(
             user_id=user.id,
@@ -194,7 +194,10 @@ async def login(
         raise
     except Exception:
         await db.rollback()
-        raise HTTPException(status_code=500, detail="An error occurred while processing the request.")
+        raise HTTPException(
+            status_code=500,
+            detail="An error occurred while processing the request."
+        )
 
 
 @router.post("/refresh/", response_model=TokenRefreshResponseSchema)
@@ -204,7 +207,7 @@ async def refresh_token(
         jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager)
 ):
     try:
-        _ = jwt_manager.verify_token(data.refresh_token)
+        _ = jwt_manager.decode_token(data.refresh_token)
     except Exception:
         raise HTTPException(status_code=400, detail="Token has expired.")
 
@@ -220,5 +223,5 @@ async def refresh_token(
     if not user:
         raise HTTPException(status_code=404, detail="User not found.")
 
-    new_access_token = jwt_manager.create_access_token(payload={"sub": str(user.id)})
+    new_access_token = jwt_manager.create_access_token(data={"sub": str(user.id)})
     return {"access_token": new_access_token, "token_type": "bearer"}
