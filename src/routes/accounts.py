@@ -159,7 +159,7 @@ async def refresh_token(
     jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager)
 ):
     try:
-        _ = jwt_manager.decode_token(data.refresh_token)
+        jwt_manager.decode_refresh_token(data.refresh_token)
     except Exception:
         raise HTTPException(status_code=400, detail="Token has expired.")
 
