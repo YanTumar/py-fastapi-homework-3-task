@@ -4,7 +4,6 @@ from typing import cast
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.exc import SQLAlchemyError
 
 from config.dependencies import get_settings, get_jwt_auth_manager
 from config.settings import BaseAppSettings
@@ -36,8 +35,8 @@ router = APIRouter()
 
 @router.post("/register/", response_model=UserRegistrationResponseSchema, status_code=status.HTTP_201_CREATED)
 async def register_user(
-    user_data: UserRegistrationRequestSchema,
-    db: AsyncSession = Depends(get_db)
+        user_data: UserRegistrationRequestSchema,
+        db: AsyncSession = Depends(get_db)
 ):
     try:
         email_exists = await db.execute(select(UserModel).filter_by(email=user_data.email))
@@ -70,14 +69,14 @@ async def register_user(
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An error occurred while processing the request."
+            detail="An error occurred during user creation."
         )
 
 
 @router.post("/activate/", response_model=MessageResponseSchema)
 async def activate_user(
-    data: UserActivationRequestSchema,
-    db: AsyncSession = Depends(get_db)
+        data: UserActivationRequestSchema,
+        db: AsyncSession = Depends(get_db)
 ):
     user_stmt = select(UserModel).filter_by(email=data.email)
     user = (await db.execute(user_stmt)).scalar_one_or_none()
@@ -106,8 +105,8 @@ async def activate_user(
 
 @router.post("/password-reset/request/", response_model=MessageResponseSchema)
 async def request_password_reset(
-    data: PasswordResetRequestSchema,
-    db: AsyncSession = Depends(get_db)
+        data: PasswordResetRequestSchema,
+        db: AsyncSession = Depends(get_db)
 ):
     user_stmt = select(UserModel).filter_by(email=data.email, is_active=True)
     user = (await db.execute(user_stmt)).scalar_one_or_none()
@@ -122,8 +121,8 @@ async def request_password_reset(
 
 @router.post("/reset-password/complete/", response_model=MessageResponseSchema)
 async def complete_password_reset(
-    data: PasswordResetCompleteRequestSchema,
-    db: AsyncSession = Depends(get_db)
+        data: PasswordResetCompleteRequestSchema,
+        db: AsyncSession = Depends(get_db)
 ):
     user_stmt = select(UserModel).filter_by(email=data.email, is_active=True)
     user = (await db.execute(user_stmt)).scalar_one_or_none()
@@ -134,7 +133,6 @@ async def complete_password_reset(
     token_stmt = select(PasswordResetTokenModel).filter_by(user_id=user.id)
     token_record = (await db.execute(token_stmt)).scalar_one_or_none()
 
-    # Важливо: якщо токен невірний, видаляємо існуючий з бази за вимогою тестів
     if not token_record or token_record.token != data.token:
         if token_record:
             await db.delete(token_record)
@@ -155,16 +153,16 @@ async def complete_password_reset(
     except Exception:
         await db.rollback()
         raise HTTPException(
-            status_code=500, detail="An error occurred while processing the request."
+            status_code=500, detail="An error occurred while resetting the password."
         )
 
 
 @router.post("/login/", response_model=UserLoginResponseSchema, status_code=status.HTTP_201_CREATED)
 async def login(
-    data: UserLoginRequestSchema,
-    db: AsyncSession = Depends(get_db),
-    jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
-    settings: BaseAppSettings = Depends(get_settings)
+        data: UserLoginRequestSchema,
+        db: AsyncSession = Depends(get_db),
+        jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
+        settings: BaseAppSettings = Depends(get_settings)
 ):
     try:
         user_stmt = select(UserModel).filter_by(email=data.email)
@@ -196,29 +194,29 @@ async def login(
         raise
     except Exception:
         await db.rollback()
-        raise HTTPException(
-            status_code=500,
-            detail="An error occurred while processing the request."
-        )
+        raise HTTPException(status_code=500, detail="An error occurred while processing the request.")
 
 
 @router.post("/refresh/", response_model=TokenRefreshResponseSchema)
 async def refresh_token(
-    data: TokenRefreshRequestSchema,
-    db: AsyncSession = Depends(get_db),
-    jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager)
+        data: TokenRefreshRequestSchema,
+        db: AsyncSession = Depends(get_db),
+        jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager)
 ):
-    payload = jwt_manager.decode_token(data.refresh_token)
-    if not payload:
+    try:
+        _ = jwt_manager.verify_token(data.refresh_token)
+    except Exception:
         raise HTTPException(status_code=400, detail="Token has expired.")
 
     token_stmt = select(RefreshTokenModel).filter_by(token=data.refresh_token)
     token_record = (await db.execute(token_stmt)).scalar_one_or_none()
+
     if not token_record:
         raise HTTPException(status_code=401, detail="Refresh token not found.")
 
     user_stmt = select(UserModel).filter_by(id=token_record.user_id)
     user = (await db.execute(user_stmt)).scalar_one_or_none()
+
     if not user:
         raise HTTPException(status_code=404, detail="User not found.")
 
