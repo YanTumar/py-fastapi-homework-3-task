@@ -35,8 +35,8 @@ router = APIRouter()
 
 @router.post("/register/", response_model=UserRegistrationResponseSchema, status_code=status.HTTP_201_CREATED)
 async def register_user(
-        user_data: UserRegistrationRequestSchema,
-        db: AsyncSession = Depends(get_db)
+    user_data: UserRegistrationRequestSchema,
+    db: AsyncSession = Depends(get_db)
 ):
     try:
         email_exists = await db.execute(select(UserModel).filter_by(email=user_data.email))
@@ -75,8 +75,8 @@ async def register_user(
 
 @router.post("/activate/", response_model=MessageResponseSchema)
 async def activate_user(
-        data: UserActivationRequestSchema,
-        db: AsyncSession = Depends(get_db)
+    data: UserActivationRequestSchema,
+    db: AsyncSession = Depends(get_db)
 ):
     user_stmt = select(UserModel).filter_by(email=data.email)
     user = (await db.execute(user_stmt)).scalar_one_or_none()
@@ -105,8 +105,8 @@ async def activate_user(
 
 @router.post("/password-reset/request/", response_model=MessageResponseSchema)
 async def request_password_reset(
-        data: PasswordResetRequestSchema,
-        db: AsyncSession = Depends(get_db)
+    data: PasswordResetRequestSchema,
+    db: AsyncSession = Depends(get_db)
 ):
     user_stmt = select(UserModel).filter_by(email=data.email, is_active=True)
     user = (await db.execute(user_stmt)).scalar_one_or_none()
@@ -121,8 +121,8 @@ async def request_password_reset(
 
 @router.post("/reset-password/complete/", response_model=MessageResponseSchema)
 async def complete_password_reset(
-        data: PasswordResetCompleteRequestSchema,
-        db: AsyncSession = Depends(get_db)
+    data: PasswordResetCompleteRequestSchema,
+    db: AsyncSession = Depends(get_db)
 ):
     user_stmt = select(UserModel).filter_by(email=data.email, is_active=True)
     user = (await db.execute(user_stmt)).scalar_one_or_none()
@@ -159,10 +159,10 @@ async def complete_password_reset(
 
 @router.post("/login/", response_model=UserLoginResponseSchema, status_code=status.HTTP_201_CREATED)
 async def login(
-        data: UserLoginRequestSchema,
-        db: AsyncSession = Depends(get_db),
-        jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
-        settings: BaseAppSettings = Depends(get_settings)
+    data: UserLoginRequestSchema,
+    db: AsyncSession = Depends(get_db),
+    jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
+    settings: BaseAppSettings = Depends(get_settings)
 ):
     try:
         user_stmt = select(UserModel).filter_by(email=data.email)
@@ -174,8 +174,9 @@ async def login(
         if not user.is_active:
             raise HTTPException(status_code=403, detail="User account is not activated.")
 
-        access_token = jwt_manager.create_access_token(data={"sub": str(user.id)})
-        refresh_token_str = jwt_manager.create_refresh_token(data={"sub": str(user.id)})
+        payload = {"user_id": user.id, "sub": user.email}
+        access_token = jwt_manager.create_access_token(data=payload)
+        refresh_token_str = jwt_manager.create_refresh_token(data=payload)
 
         new_refresh_token = RefreshTokenModel.create(
             user_id=user.id,
@@ -202,13 +203,16 @@ async def login(
 
 @router.post("/refresh/", response_model=TokenRefreshResponseSchema)
 async def refresh_token(
-        data: TokenRefreshRequestSchema,
-        db: AsyncSession = Depends(get_db),
-        jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager)
+    data: TokenRefreshRequestSchema,
+    db: AsyncSession = Depends(get_db),
+    jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager)
 ):
     try:
-        _ = jwt_manager.decode_token(data.refresh_token)
+        decoded_payload = jwt_manager.decode_refresh_token(data.refresh_token)
     except Exception:
+        raise HTTPException(status_code=400, detail="Token has expired.")
+
+    if not decoded_payload:
         raise HTTPException(status_code=400, detail="Token has expired.")
 
     token_stmt = select(RefreshTokenModel).filter_by(token=data.refresh_token)
@@ -223,5 +227,5 @@ async def refresh_token(
     if not user:
         raise HTTPException(status_code=404, detail="User not found.")
 
-    new_access_token = jwt_manager.create_access_token(data={"sub": str(user.id)})
+    new_access_token = jwt_manager.create_access_token(data={"user_id": user.id, "sub": user.email})
     return {"access_token": new_access_token, "token_type": "bearer"}
